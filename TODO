@@ -1,0 +1,10 @@
+
+* Fix the type class resoluation
+* Fix the qualified names in the subtyping relation
+* Local type inference with type class constraint and subtyping constraints
+* Where clause
+* Let bindings
+* K-pattern and Rec pattern nested pattern matching with polymorphic types
+* Polymorphic data types
+* List comprehension
+* Monad and do syntax
