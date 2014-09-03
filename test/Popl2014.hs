@@ -1,6 +1,6 @@
 
 {-# LANGUAGE ScopedTypeVariables, QuasiQuotes, TemplateHaskell, MultiParamTypeClasses, FlexibleInstances #-} 
-module Simple where
+module Popl2014 where
 
 import Language.XHaskell
 import Prelude hiding (even)
@@ -35,13 +35,13 @@ foo (xs :: Star a) = mapStar (even:: a -> b) xs
 {-
 It does not work, w/o functional dependencies, the behavior of foo really depends on the type annotations
 
-*Simple> foo [1::Int,2,3] :: [Int]
+*Popl2014> foo [1::Int,2,3] :: [Int]
 [1,2,3]
 
-*Simple> foo [1::Int,2,3] :: [Bool]
+*Popl2014> foo [1::Int,2,3] :: [Bool]
 [False,True,False]
 
-*Simple> foo [1::Int,2,3]
+*Popl2014> foo [1::Int,2,3]
 
 <interactive>:45:1:
     No instance for (Even Int b0) arising from a use of `foo'
