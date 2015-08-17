@@ -109,8 +109,8 @@ mkDtTyEnv decls = foldM (\tenv decl ->
                                  in foldM (\tenv' (QualConDecl srcLoc tyVarBinds' context condecl) ->
                                             if (length tyVarBinds' == 0)
                                             then case condecl of
-                                              { ConDecl dcName bangTypes -> do 
-                                                   { let tys = map S.unbang bangTypes
+                                              { ConDecl dcName dtypes -> do 
+                                                   { let tys = map S.unbang dtypes
                                                          ctxt = [] -- todo: get from context, NOTE we do not support context in the data type nor existential type
                                                          ty  | length tys == 0 = rt
                                                              | otherwise       = TyFun (foldl1 TyFun tys) rt
@@ -164,7 +164,7 @@ type InstEnv = M.Map QName [(SrcLoc, [Asst], [Type], [InstDecl])]
 mkInstEnv :: [Decl] -> InstEnv
 mkInstEnv decls = foldl (\instEnv decl ->
                           case decl of
-                            { InstDecl srcLoc ctxt name ts instdecls -> 
+                            { InstDecl srcLoc _ _ ctxt name ts instdecls -> 
                                  case M.lookup name instEnv of
                                    { Nothing -> M.insert name [(srcLoc, ctxt, ts, instdecls)] instEnv 
                                    ; Just _  -> M.update (\xs -> Just (xs ++ [(srcLoc, ctxt, ts, instdecls)])) name instEnv 
@@ -313,14 +313,14 @@ translateAsst :: Asst -> TH.Q TH.Pred
 translateAsst (ClassA qname ts) = do 
   { name <- translateQName qname
   ; qts  <- mapM translateType ts 
-  ; return (TH.ClassP name qts)
+  ; return $ foldl (\t s -> TH.AppT t s) (TH.ConT name) qts
   }
 translateAsst (InfixA t1 qname t2) = translateAsst (ClassA qname [t1,t2]) 
 translateAsst (IParam _ _) = fail "unable to handle implicit params"
 translateAsst (EqualP t1 t2) = do 
   { qt1 <- translateType t1
   ; qt2 <- translateType t2
-  ; return (TH.EqualP qt1 qt2) 
+  ; return (TH.AppT (TH.AppT TH.EqualityT qt1) qt2) 
   }
 
 

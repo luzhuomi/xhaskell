@@ -203,10 +203,13 @@ instance Substitutable a => Substitutable [a] where
   applySubst s xs = map (applySubst s) xs
   
 -- | apply Substition to context and build a set of constraints
+{- obsolete since Template Haskell ver 2.10.0.0
 instance Substitutable Pred where
   applySubst s (ClassP name ts) = ClassP name (map (applySubst s) ts)
   applySubst s (EqualP t1 t2)   = EqualP (applySubst s t1) (applySubst s t2)
-  
+-}
+
+
 
 
 

@@ -86,27 +86,27 @@ translateDataDecl (DataDecl srcLoc NewType context dtName tyVarBinds qualConDecl
   }
 
 translateQualConDecl :: QualConDecl -> TH.Q TH.Con
-translateQualConDecl (QualConDecl srcLoc [] [] (ConDecl dcName bangTypes)) = do
+translateQualConDecl (QualConDecl srcLoc [] [] (ConDecl dcName dtypes)) = do
   -- NormalC
-  { sTys <- mapM translateBangType bangTypes 
+  { sTys <- mapM translateBangType dtypes 
   ; name' <- translateName dcName
-  ; return (TH.NormalC name' sTys)
+  ; return (TH.NormalC name' sTys) 
   }
-translateQualConDecl (QualConDecl srcLoc [] [] (RecDecl dcName names_bangType_pair)) = do
+translateQualConDecl (QualConDecl srcLoc [] [] (RecDecl dcName names_type_pair)) = do
   -- RecC
-  { varStrictTypes <- mapM (\ (names, bangType) -> do
-                              { (s,ty) <- translateBangType bangType 
+  { varStrictTypes <- mapM (\ (names, dtype) -> do
+                              { (s,ty) <- translateBangType dtype 
                               ; names' <- mapM translateName names
                               ; return (map (\name' -> (name', s, ty)) names')
-                              } ) names_bangType_pair 
+                              } ) names_type_pair 
   ; name' <- translateName dcName
   ; return (TH.RecC name' (concat varStrictTypes))
   }
-translateQualConDecl (QualConDecl srcLoc [] [] (InfixConDecl bangType1 dcName bangType2)) = do   
+translateQualConDecl (QualConDecl srcLoc [] [] (InfixConDecl dtype1 dcName dtype2)) = do   
   -- InfixC
   { name' <- translateName dcName
-  ; sty1  <- translateBangType bangType1
-  ; sty2  <- translateBangType bangType2
+  ; sty1  <- translateBangType dtype1
+  ; sty2  <- translateBangType dtype2
   ; return (TH.InfixC sty1 name' sty2)
   }
 translateQualConDecl (QualConDecl srcLoc tyVarBinds context condecl) = do 
@@ -116,15 +116,19 @@ translateQualConDecl (QualConDecl srcLoc tyVarBinds context condecl) = do
   ; return (TH.ForallC tyVarBinds' context' con)
   }
   
-    
-translateBangType :: BangType -> TH.Q (TH.Strict, TH.Type)
-translateBangType (UnBangedTy t) = do
-  { t' <- translateType t
-  ; return (TH.NotStrict, T.xhTyToHsTy t')
-  }
-translateBangType (BangedTy t) = do
+
+translateBangType :: Type -> TH.Q (TH.Strict, TH.Type)
+translateBangType (TyBang BangedTy t) = do
   { t' <- translateType t
   ; return (TH.IsStrict, T.xhTyToHsTy t')
+  }
+translateBangType (TyBang UnpackedTy t) = do
+  { t' <- translateType t
+  ; return (TH.Unpacked, T.xhTyToHsTy t')
+  }
+translateBangType t = do
+  { t' <- translateType t
+  ; return (TH.NotStrict, T.xhTyToHsTy t')
   }
 
   
@@ -167,7 +171,7 @@ translateDecs tyEnv bdEnv clEnv instEnv ((TypeSig src idents ty):decs) = do
   ; qDecss <- translateDecs tyEnv bdEnv clEnv instEnv decs 
   ; return ((concat qDecs) ++ qDecss)
   }
-translateDecs tyEnv bdEnv clEnv instEnv (dec@(InstDecl src ctxt name tys instDecl):decs) = do 
+translateDecs tyEnv bdEnv clEnv instEnv (dec@(InstDecl src mb_overlap tvbs ctxt name tys instDecl):decs) = do 
   { qDec <- translateInst tyEnv clEnv instEnv  dec
   ; qDecss <- translateDecs tyEnv bdEnv clEnv instEnv decs
   ; return (qDec:qDecss)
@@ -182,7 +186,7 @@ translateDecs tyEnv bdEnv clEnv instEnv (dec@(DataDecl src dataOrNew context dtN
   ; qDecss <- translateDecs tyEnv bdEnv clEnv instEnv decs
   ; return (qDec:qDecss)
   }
-translateDecs tyEnv bdEnv clEnv instEnv (pBnd@(PatBind src p mbTy rhs bdDecs):decs) = do
+translateDecs tyEnv bdEnv clEnv instEnv (pBnd@(PatBind src p {- mbTy -} rhs bdDecs):decs) = do
   { qDec <- translatePatBind tyEnv bdEnv clEnv instEnv pBnd
   ; qDecss <- translateDecs tyEnv bdEnv clEnv instEnv decs
   ; return (qDec:qDecss)
@@ -190,7 +194,7 @@ translateDecs tyEnv bdEnv clEnv instEnv (pBnd@(PatBind src p mbTy rhs bdDecs):de
 translateDecs tyEnv bdEnv clEnv instEnv (_:decs) = translateDecs tyEnv bdEnv clEnv instEnv decs                                                       
 
 
-translatePatBind :: TyEnv -> BdEnv -> ClEnv -> InstEnv -> Decl -> TH.Q TH.Dec
+translatePatBind :: TyEnv -> BdEnv -> ClEnv -> InstEnv -> Decl -> TH.Q TH.Dec {- removed after HSX 1.16. Question when do we get this on the declaration level???
 translatePatBind tyEnv bdEnv clEnv instEnv (PatBind src (PVar ident) (Just ty) (UnGuardedRhs e) bdDecs) = do 
   { let cenv = buildConstrEnv clEnv instEnv 
   ; ident' <- translateName ident
@@ -198,7 +202,8 @@ translatePatBind tyEnv bdEnv clEnv instEnv (PatBind src (PVar ident) (Just ty) (
   ; e'     <- translateExpC src tyEnv cenv e ty'
   ; return $ TH.ValD (TH.VarP ident') (TH.NormalB e') []
   }
-translatePatBind tyEnv bdEnv clEnv instEnv (PatBind src (PVar ident) Nothing (UnGuardedRhs e) bdDecs) = do 
+-}
+translatePatBind tyEnv bdEnv clEnv instEnv (PatBind src (PVar ident) {- Nothing -} (UnGuardedRhs e) bdDecs) = do 
   { let cenv = buildConstrEnv clEnv instEnv 
   ; ident' <- translateName ident
   ; case M.lookup ident tyEnv of
@@ -236,7 +241,7 @@ tenv U tenv_c, bdEnv, clEnv U \theta(ctxt) |- \bar{f = e : \theta(t')} ~> \bar{f
 tenv, bdEnv, clEnv |- instance ctxt => C \bar{t} where \bar{f=e} ~> instance ctxt => C \bar{[[t]]} where \bar{f=E}
 -}             
 translateInst :: TyEnv -> ClEnv -> InstEnv -> Decl -> TH.Q TH.Dec
-translateInst tyEnv clEnv instEnv (InstDecl src ctxt (UnQual name) tys instDecls) = do 
+translateInst tyEnv clEnv instEnv (InstDecl src mb_overlap tvbs ctxt (UnQual name) tys instDecls) = do 
   { ctxt'  <- translateContext ctxt
   ; name' <- translateName name
   ; tys'   <- mapM translateType tys
@@ -292,7 +297,7 @@ translateInst tyEnv clEnv instEnv (InstDecl src ctxt (UnQual name) tys instDecls
       }
     }
   }
-translateInst tyEnv clEnv instEnv (InstDecl src ctxt qname@(Qual modName name) tys instDecls) = -- since the the modName is qualified, it must be from another module 
+translateInst tyEnv clEnv instEnv (InstDecl src mb_overlap tvbs ctxt qname@(Qual modName name) tys instDecls) = -- since the the modName is qualified, it must be from another module 
   do 
     { ctxt'  <- translateContext ctxt
     ; name' <- translateQName qname
@@ -446,6 +451,9 @@ desugarMatches pSrcLoc ms = do
         e    =  Lambda srcLoc [PVar (Ident "x")] (Case (Var (UnQual (Ident "x"))) alts)
   ; return e
   }
+  where matchToAlt (Match srcLoc name [p] mbTy rhs binds) =
+         return (Alt srcLoc p rhs binds)
+  {-
   where matchToAlt (Match srcLoc name [p] mbTy rhs binds) = do
           { let guardAlt = rhsToGuardAlt rhs
           ; return (Alt srcLoc p guardAlt binds) }
@@ -453,7 +461,7 @@ desugarMatches pSrcLoc ms = do
         rhsToGuardAlt (UnGuardedRhs e) = UnGuardedAlt e
         rhsToGuardAlt (GuardedRhss grhss) = GuardedAlts (map gRhsToGAlt grhss)
         gRhsToGAlt (GuardedRhs srcLoc stmts e) = GuardedAlt srcLoc stmts e
-
+        -}    
 
 {-
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -770,7 +778,7 @@ translateExpC pSrcLoc tenv cenv e1@(Lambda srcLoc [(PParen (PatTypeSig srcLoc' (
 -}
 translateExpC pSrcLoc tenv cenv e0@(Lambda srcLoc [p] e) ty = 
   translateExpC pSrcLoc tenv cenv (Lambda srcLoc [PVar (Ident "x")]
-                                   (Case (Var (UnQual (Ident "x"))) [Alt srcLoc p (UnGuardedAlt e) (BDecls [])])) ty 
+                                   (Case (Var (UnQual (Ident "x"))) [Alt srcLoc p (UnGuardedRhs e) (BDecls [])])) ty 
 
 
 
@@ -872,7 +880,7 @@ translateExpC pSrcLoc tenv cenv (Case e alts) ty = do
         pat (Alt srcLoc p _ _) = return p
         
         rhs :: Alt -> TH.Q Exp
-        rhs (Alt srcLoc p (UnGuardedAlt e) _) = return e
+        rhs (Alt srcLoc p (UnGuardedRhs e) _) = return e
         rhs (Alt srcLoc p _ _)  = failWithSrcLoc srcLoc $ "can't handled guarded pattern."
         
         patToExp :: TH.Pat -> TH.Exp

@@ -48,8 +48,8 @@ isClassDecl (ClassDecl srcLoc ctxt name tyVars fds classDecls) = True
 isClassDecl _                                                  = False
 
 isInstDecl :: Decl -> Bool
-isInstDecl (InstDecl srcLoc ctxt name tyVars instDecls) = True
-isInstDecl _                                            = False
+isInstDecl (InstDecl srcLoc mbOverlap tvb ctxt name tyVars instDecls) = True
+isInstDecl _                                                = False
 
 
 isDtDecl :: Decl -> Bool
@@ -57,6 +57,7 @@ isDtDecl (DataDecl srcLoc dataOrNew context dtName tyVarBinds qualConDecls deriv
 isDtDecl _                                                                            = False
 
 isMono :: Type -> Bool
+-- todo TySplice etc
 isMono t@(TyForall Nothing ctxt ty) = null (typeVars t)
 isMono (TyForall (Just _) ctxt ty) = False
 isMono t = null (typeVars t)
@@ -94,16 +95,16 @@ typeVars' (TyCon _)  = []
 typeVars' (TyParen ty) = typeVars' ty
 typeVars' (TyInfix t1 qname t2) = typeVars' t1 ++ typeVars' t2
 typeVars' (TyKind ty k) = typeVars' ty
-     
+typeVars' (TyBang bt ty) = typeVars' ty     
                           
 getTvFromTvb :: TyVarBind -> Name
 getTvFromTvb (UnkindedVar v) = v
 getTvFromTvb (KindedVar v k) = v
 
 
-unbang :: BangType -> Type
-unbang (UnBangedTy t) = t
-unbang (BangedTy t) = t
+unbang :: Type -> Type
+unbang (TyBang bt t) = t
+unbang t = t
 
 
 
